@@ -1,0 +1,1 @@
+python main.py --device 3 --dataset phoenix2014-T --phase test --load-weights /share/huaiwen_group/guozihang/pretrained_model/slowfast/CSL-Daily_dev_25.49_test_24.85.pt --work-dir /share/huaiwen_group/guozihang/work_dir/slowfast_offical_evaluate_pht
