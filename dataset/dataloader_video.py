@@ -1,4 +1,5 @@
 import os
+import pickle
 import cv2
 import sys
 import pdb
@@ -60,9 +61,41 @@ class BaseFeeder ( data.Dataset ) :
             input_data , label , fi = self.read_numpy ( idx )
             input_data , label = self.normalize ( input_data , label )
             return input_data , torch.LongTensor ( label ) , self.inputs_list [ idx ] [ 'original_info' ]
+        elif self.data_type == "memmap" :
+            if hasattr(self, 'mem') == False:
+                self.init_memmap()
+            input_data , label , fi = self.read_memmap ( idx )
+            input_data , label = self.normalize ( input_data , label )
+            return input_data , torch.LongTensor ( label ) , self.inputs_list [ idx ] [ 'original_info' ]
         else :
             input_data , label = self.read_features ( idx )
             return input_data , label , self.inputs_list [ idx ] [ 'original_info' ]
+
+    def init_memmap ( self ) :
+        if self.dataset == 'phoenix2014' :
+            with open (
+                    f"/share/huaiwen_group/guozihang/phoenix2014-release_memmap/phoenix2014-bigarray-map-{self.mode}" ,
+                    mode = "rb" ) as f :
+                self.info = pickle.load ( f )
+            T = self.info [ -1 ] [ 'end' ]
+            self.info = {i [ "path" ].split ( "/" ) [ -1 ] : [ i [ "start" ] , i [ "end" ] ] for i in self.info}
+            self.mem = np.memmap (
+                f"/share/huaiwen_group/guozihang/phoenix2014-release_memmap/phoenix2014-{self.mode}.pickle" ,
+                mode = "r" ,
+                shape = (T , 256 , 256 , 3) )
+
+    def read_memmap ( self , index ) :
+        fi = self.inputs_list [ index ]
+        label_list = [ ]
+        for phase in fi [ 'label' ].split ( " " ) :
+            if phase == '' :
+                continue
+            if phase in self.dict.keys ( ) :
+                label_list.append ( self.dict [ phase ] [ 0 ] )
+        images = self.mem [ self.info [ fi [ 'fileid' ] + ".npy" ] [ 0 ] :self.info [ fi [ 'fileid' ] + ".npy" ] [ 1 ] ]
+        images = np.split ( images , images.shape [ 0 ] , axis = 0 )
+        images = [ np.squeeze ( im , axis = 0 ) for im in images ]
+        return images , label_list , fi
 
     def read_numpy ( self , index ) :
         # load file info
@@ -75,14 +108,13 @@ class BaseFeeder ( data.Dataset ) :
         elif self.dataset == 'CSL' :
             img_folder = os.path.join ( self.prefix , "features/fullFrame-256x256px/" + fi [ 'folder' ] + "/*.jpg" )
         elif self.dataset == 'CSL-Daily' :
-            img_folder = os.path.join ( self.prefix , fi [ 'fileid' ]  + ".npy")
+            img_folder = os.path.join ( self.prefix , fi [ 'fileid' ] + ".npy" )
         label_list = [ ]
         for phase in fi [ 'label' ].split ( " " ) :
             if phase == '' :
                 continue
             if phase in self.dict.keys ( ) :
                 label_list.append ( self.dict [ phase ] [ 0 ] )
-
         images = np.load ( img_folder )
         images = np.split ( images , images.shape [ 0 ] , axis = 0 )
         images = [ np.squeeze ( im , axis = 0 ) for im in images ]
