@@ -62,8 +62,8 @@ class BaseFeeder ( data.Dataset ) :
             input_data , label = self.normalize ( input_data , label )
             return input_data , torch.LongTensor ( label ) , self.inputs_list [ idx ] [ 'original_info' ]
         elif self.data_type == "memmap" :
-            if hasattr(self, 'mem') == False:
-                self.init_memmap()
+            if hasattr ( self , 'mem' ) == False :
+                self.init_memmap ( )
             input_data , label , fi = self.read_memmap ( idx )
             input_data , label = self.normalize ( input_data , label )
             return input_data , torch.LongTensor ( label ) , self.inputs_list [ idx ] [ 'original_info' ]
@@ -72,17 +72,33 @@ class BaseFeeder ( data.Dataset ) :
             return input_data , label , self.inputs_list [ idx ] [ 'original_info' ]
 
     def init_memmap ( self ) :
-        if self.dataset == 'phoenix2014' :
-            with open (
-                    f"/share/huaiwen_group/guozihang/phoenix2014-release_memmap/phoenix2014-bigarray-map-{self.mode}" ,
-                    mode = "rb" ) as f :
+        if self.dataset == 'phoenix2014':
+            with open ( f"/share/huaiwen_group/guozihang/phoenix2014-release_memmap/phoenix2014-{self.mode}.pickle",mode = "rb" ) as f :
                 self.info = pickle.load ( f )
             T = self.info [ -1 ] [ 'end' ]
             self.info = {i [ "path" ].split ( "/" ) [ -1 ] : [ i [ "start" ] , i [ "end" ] ] for i in self.info}
             self.mem = np.memmap (
-                f"/share/huaiwen_group/guozihang/phoenix2014-release_memmap/phoenix2014-{self.mode}.pickle" ,
+                f"/share/huaiwen_group/guozihang/phoenix2014-release_memmap/phoenix2014-bigarray-map-{self.mode}" ,
                 mode = "r" ,
-                shape = (T , 256 , 256 , 3) )
+                shape = (T , 256 , 256 , 3))
+        elif self.dataset == 'phoenix2014-T':
+            with open ( f"/share/huaiwen_group/guozihang/phoenix2014-T-release_memmap/phoenix2014-T-{self.mode}.pickle",mode = "rb" ) as f :
+                self.info = pickle.load ( f )
+            T = self.info [ -1 ] [ 'end' ]
+            self.info = {i [ "path" ].split ( "/" ) [ -1 ] : [ i [ "start" ] , i [ "end" ] ] for i in self.info}
+            self.mem = np.memmap (
+                f"/share/huaiwen_group/guozihang/phoenix2014-release_memmap/phoenix2014-T-bigarray-map-{self.mode}" ,
+                mode = "r" ,
+                shape = (T , 256 , 256 , 3))
+        elif self.dataset == "CSL-Daily":
+            with open ( f"/share/huaiwen_group/guozihang/CSL-Daily_memap/csldaily.pickle",mode = "rb" ) as f :
+                self.info = pickle.load ( f )
+            T = self.info [ -1 ] [ 'end' ]
+            self.info = {i [ "path" ].split ( "/" ) [ -1 ] : [ i [ "start" ] , i [ "end" ] ] for i in self.info}
+            self.mem = np.memmap (
+                f"/share/huaiwen_group/guozihang/CSL-Daily_memap/csldaily" ,
+                mode = "r" ,
+                shape = (T , 256 , 256 , 3))
 
     def read_memmap ( self , index ) :
         fi = self.inputs_list [ index ]
