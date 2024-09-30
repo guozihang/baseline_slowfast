@@ -1,0 +1,1 @@
+python main.py --device 2 --dataset CSL-Daily --loss-weights Slow=0.1 Fast=0.4 --work-dir /share/huaiwen_group/guozihang/work_dir/slowfast_offical_reproduct_cd_memmap
