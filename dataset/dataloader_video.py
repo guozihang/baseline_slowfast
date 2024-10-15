@@ -87,7 +87,7 @@ class BaseFeeder ( data.Dataset ) :
             T = self.info [ -1 ] [ 'end' ]
             self.info = {i [ "path" ].split ( "/" ) [ -1 ] : [ i [ "start" ] , i [ "end" ] ] for i in self.info}
             self.mem = np.memmap (
-                f"/share/huaiwen_group/guozihang/phoenix2014-release_memmap/phoenix2014-T-bigarray-map-{self.mode}" ,
+                f"/share/huaiwen_group/guozihang/phoenix2014-T-release_memmap/phoenix2014-T-bigarray-map-{self.mode}" ,
                 mode = "r" ,
                 shape = (T , 256 , 256 , 3))
         elif self.dataset == "CSL-Daily":
