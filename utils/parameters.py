@@ -122,6 +122,12 @@ def get_parser():
         default=[],
         nargs='+',
         help='the name of weights which will be ignored in the initialization')
+    parser.add_argument (
+        '--model-ignore-weights' ,
+        type = str ,
+        default = [ ] ,
+        nargs = '+' ,
+        help = 'the name of model weights which will be ignored in the initialization' )
 
     # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
     # optim

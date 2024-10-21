@@ -187,9 +187,15 @@ class Processor():
                     print('Successfully Remove Weights: {}.'.format(w))
                 else:
                     print('Can Not Remove Weights: {}.'.format(w))
+        if len ( self.arg.model_ignore_weights ) :
+            for w in self.arg.model_ignore_weights:
+                if state_dict['model_state_dict'].pop(w, None) is not None:
+                    print('Successfully Remove Weights: {}.'.format(w))
+                else:
+                    print('Can Not Remove Weights: {}.'.format(w))
         weights = self.modified_weights(state_dict['model_state_dict'], False)
         # weights = self.modified_weights(state_dict['model_state_dict'])
-        model.load_state_dict(weights, strict=True)
+        model.load_state_dict(weights, strict=False)
 
     @staticmethod
     def modified_weights(state_dict, modified=False):
