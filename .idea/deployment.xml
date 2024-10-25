@@ -1,8 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" autoUpload="Always" serverName="guozihang@183.175.12.112:22" remoteFilesAllowedToDisappearOnAutoupload="false">
+  <component name="PublishConfigData" autoUpload="Always" serverName="guozihang@183.175.12.112:22 (12)" remoteFilesAllowedToDisappearOnAutoupload="false">
     <serverData>
       <paths name="guozihang@183.175.12.112:22">
+        <serverdata>
+          <mappings>
+            <mapping deploy="baseline_slowfast" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="guozihang@183.175.12.112:22 (12)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="baseline_slowfast" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="guozihang@183.175.12.113:22">
         <serverdata>
           <mappings>
             <mapping deploy="baseline_slowfast" local="$PROJECT_DIR$" web="/" />
