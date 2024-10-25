@@ -53,6 +53,11 @@ class BaseFeeder ( data.Dataset ) :
             input_data , label = self.normalize ( input_data , label )
             # input_data, label = self.normalize(input_data, label, fi['fileid'])
             return input_data , torch.LongTensor ( label ) , self.inputs_list [ idx ] [ 'original_info' ]
+        elif self.data_type == "numpy" :
+            input_data , label , fi = self.read_numpy ( idx )
+            input_data , label = self.normalize ( input_data , label )
+            # input_data, label = self.normalize(input_data, label, fi['fileid'])
+            return input_data , torch.LongTensor ( label ) , self.inputs_list [ idx ] [ 'original_info' ]
         elif self.data_type == "lmdb" :
             input_data , label , fi = self.read_lmdb ( idx )
             input_data , label = self.normalize ( input_data , label )
@@ -73,12 +78,12 @@ class BaseFeeder ( data.Dataset ) :
 
     def init_memmap ( self ) :
         if self.dataset == 'phoenix2014':
-            with open ( f"/share/huaiwen_group/guozihang/phoenix2014-release_memmap/phoenix2014-{self.mode}.pickle",mode = "rb" ) as f :
+            with open ( f"./dataset/ph_memmap/phoenix2014-{self.mode}.pickle",mode = "rb" ) as f :
                 self.info = pickle.load ( f )
             T = self.info [ -1 ] [ 'end' ]
             self.info = {i [ "path" ].split ( "/" ) [ -1 ] : [ i [ "start" ] , i [ "end" ] ] for i in self.info}
             self.mem = np.memmap (
-                f"/share/huaiwen_group/guozihang/phoenix2014-release_memmap/phoenix2014-bigarray-map-{self.mode}" ,
+                f"./dataset/ph_memmap/phoenix2014-bigarray-map-{self.mode}" ,
                 mode = "r" ,
                 shape = (T , 256 , 256 , 3))
         elif self.dataset == 'phoenix2014-T':
@@ -135,6 +140,28 @@ class BaseFeeder ( data.Dataset ) :
         images = np.split ( images , images.shape [ 0 ] , axis = 0 )
         images = [ np.squeeze ( im , axis = 0 ) for im in images ]
         return images , label_list , fi
+
+    def read_numpy(self, index):
+        # load file info
+        fi = self.inputs_list[index]
+        if self.dataset in ["phoenix2014-normal", "phoenix2014-noback"]:
+            # img_folder = os.path.join(self.prefix, "features/fullFrame-256x256px/" + fi['folder'])
+            img_folder = os.path.join(self.prefix, self.mode, fi['fileid'] + ".npy")
+        elif self.dataset == 'CSL':
+            img_folder = os.path.join(self.prefix, "features/fullFrame-256x256px/" + fi['folder'] + "/*.jpg")
+        elif self.dataset == 'CSL-Daily':
+            img_folder = os.path.join(self.prefix, fi['folder'])
+        label_list = []
+        for phase in fi['label'].split(" "):
+            if phase == '':
+                continue
+            if phase in self.dict.keys():
+                label_list.append(self.dict[phase][0])
+
+        images = np.load(img_folder)
+        images = np.split(images, images.shape[0], axis=0)
+        images = [np.squeeze(im, axis=0) for im in images]
+        return images, label_list, fi
 
     def read_video ( self , index ) :
         # load file info
