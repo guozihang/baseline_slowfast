@@ -1,0 +1,1 @@
+python main.py --device 1 --dataset phoenix2014 --loss-weights Slow=0.25 Fast=0.25 Cosine=0.5 --work-dir /share/huaiwen_group/guozihang/work_dir/slowfast_add_block_sim
