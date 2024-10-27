@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
 from modules.criterions import SeqKD
-from modules import BiLSTMLayer, TemporalSlowFastFuse
+from modules import BiLSTMLayer, TemporalSlowFastFuse, gloss_encoder
 import slowfast_modules.slowfast as slowfast
 import importlib
 
@@ -31,6 +31,34 @@ class NormLinear(nn.Module):
         return outputs
 
 
+class Attention(nn.Module):
+    def __init__(self, dim = 1024, num_heads=1, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0.):
+        super().__init__()
+        self.num_heads = num_heads
+        head_dim = dim // num_heads
+        # NOTE scale factor was wrong in my original version, can set manually to be compat with prev weights
+        self.scale = qk_scale or head_dim ** -0.5
+
+        self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
+        self.attn_drop = nn.Dropout(attn_drop)
+        self.proj = nn.Linear(dim, dim)
+        self.proj_drop = nn.Dropout(proj_drop)
+
+    def forward(self, x):
+        B, N, C = x.shape
+        qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
+        q, k, v = qkv[0], qkv[1], qkv[2]   # make torchscript happy (cannot use tensor as tuple)
+
+        attn = (q @ k.transpose(-2, -1)) * self.scale
+        attn = attn.softmax(dim=-1)
+        attn = self.attn_drop(attn)
+
+        x = (attn @ v).transpose(1, 2).reshape(B, N, C)
+        x = self.proj(x)
+        x = self.proj_drop(x)
+        return x
+
+
 class SLRModel(nn.Module):
     def __init__(
             self, num_classes, c2d_type, conv_type, load_pkl, slowfast_config, slowfast_args=None,
@@ -45,7 +73,7 @@ class SLRModel(nn.Module):
         self.loss_weights = loss_weights
         self.conv2d = getattr(slowfast, c2d_type)(slowfast_config=slowfast_config,  slowfast_args=slowfast_args,
                                                   load_pkl=load_pkl, multi=True)
-
+        self.gloss_dict = gloss_dict
         self.conv1d = TemporalSlowFastFuse(fast_input_size=256, slow_input_size=2048, hidden_size=hidden_size, conv_type=conv_type, use_bn=use_bn, num_classes=num_classes)
         self.decoder = utils.Decode(gloss_dict, num_classes, 'beam')
 
@@ -64,6 +92,12 @@ class SLRModel(nn.Module):
             self.classifier = nn.ModuleList([classifier for i in range(3)])
             self.conv1d.fc = nn.ModuleList([classifier for i in range(3)])
         #self.register_backward_hook(self.backward_hook)
+        self.video_gloss_attn_a = Attention(1024)
+        self.video_gloss_attn_b = Attention ( 1024 )
+        self.video_gloss_attn_c = Attention ( 1024 )
+        self.video_gloss_attn = [self.video_gloss_attn_a, self.video_gloss_attn_b, self.video_gloss_attn_c]
+        self.cosine_sim = torch.nn.CosineSimilarity ( dim = -1 , eps = 1e-6 )
+        self.gloss_encoder = gloss_encoder()
 
     def backward_hook(self, module, grad_input, grad_output):
         for g in grad_input:
@@ -85,10 +119,35 @@ class SLRModel(nn.Module):
         else:
             # frame-wise features
             framewise = x
-        
         conv1d_outputs = self.conv1d(framewise, len_x)
-        lgt = conv1d_outputs['feat_len']
-        
+        pooled_features = []
+        for i in range(len(conv1d_outputs['visual_feat'])):
+            conv1d_output = conv1d_outputs['visual_feat'][i]
+            conv1d_output = self.video_gloss_attn[i](conv1d_output)
+            r_conv1d_output = conv1d_output.roll(1, 0)
+            similarity = self.cosine_sim ( conv1d_output , r_conv1d_output ).squeeze(-1)
+            topk_similarity , topk_indices = similarity.topk ( label_lgt[0] , sorted = True )
+            paired = list ( zip ( topk_similarity.tolist ( ) , topk_indices.tolist ( ) ) )
+            sorted_paired = sorted ( paired , key = lambda x : x [ 1 ] )
+            se = [ ]
+            for j in range ( len ( sorted_paired ) ) :
+                if j == 0 :
+                    se.append ( [ 0 , sorted_paired [ j ] [ 1 ] ] )
+                elif j == len ( sorted_paired ) - 1 :
+                    se.append ( [ sorted_paired [ -1 ] [ 1 ] , len ( conv1d_output ) - 1 ] )
+                else :
+                    se.append ( [ sorted_paired [ j - 1 ] [ 1 ] , sorted_paired [ j ] [ 1 ] ] )
+            pooled_feature = [ ]
+            for start , end in se :
+                if end != start:
+                    b = torch.nn.functional.avg_pool1d ( conv1d_output [ start :end ].squeeze(1).T , kernel_size = end - start)
+                    pooled_feature.append ( b.T )
+                else:
+                    pooled_feature.append ( conv1d_output [ start ].squeeze(1) )
+
+            pooled_features.append(torch.concat(pooled_feature, dim=0))
+        gloss_feature = self.gloss_encoder(label)
+        lgt = conv1d_outputs [ 'feat_len' ]
         outputs = []
         for i in range(len(conv1d_outputs['visual_feat'])):
             tm_outputs = self.temporal_model[i](conv1d_outputs['visual_feat'][i], lgt)
@@ -107,6 +166,9 @@ class SLRModel(nn.Module):
             "sequence_logits": outputs,
             "conv_sents": conv_pred,
             "recognized_sents": pred,
+            "pooled_features":pooled_features,
+            "gloss_feature":gloss_feature,
+            "label":label
         }
 
     def criterion_calculation(self, ret_dict, label, label_lgt):
@@ -140,9 +202,15 @@ class SLRModel(nn.Module):
                 loss += weight * self.loss['distillation'](ret_dict["conv_logits"][0],
                                                            ret_dict["sequence_logits"][0].detach(),
                                                            use_blank=False)
+            elif k == 'Cosine':
+                cosine_loss = 0
+                for i in range(3):
+                    cosine_loss += self.loss['CosineLoss'](ret_dict["pooled_features"][i], ret_dict["gloss_feature"], ret_dict["label"])
+                loss += weight * cosine_loss
         return loss
 
     def criterion_init(self):
         self.loss['CTCLoss'] = torch.nn.CTCLoss(reduction='none', zero_infinity=False)
         self.loss['distillation'] = SeqKD(T=8)
+        self.loss['CosineLoss'] = torch.nn.CosineEmbeddingLoss()
         return self.loss
