@@ -1,0 +1,1 @@
+python main.py --device 8 --dataset ph_fuse --loss-weights Slow=0.25 Fast=0.25 --work-dir /sda/data/guozihang/work_dir/slowfast_ph_fuse
