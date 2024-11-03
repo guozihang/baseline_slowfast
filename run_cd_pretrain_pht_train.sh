@@ -1,1 +1,1 @@
-python main.py --device 6 --dataset phoenix2014-T --loss-weights Slow=0.25 Fast=0.25 --phase train --load-checkpoints /share/huaiwen_group/guozihang/work_dir/slowfast_csldaily_pretrain_pht_train/dev_20.28_epoch25_model.pt --work-dir /share/huaiwen_group/guozihang/work_dir/slowfast_csldaily_pretrain_pht_train
+python main.py --device 5 --model slr_network_multi_official.SLRModel --dataset phoenix2014-T --loss-weights Slow=0.25 Fast=0.25 --phase train --work-dir /share/huaiwen_group/guozihang/work_dir/slowfast_csldaily_pretrain_pht_train_2
