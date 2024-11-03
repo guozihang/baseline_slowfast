@@ -5,6 +5,7 @@ import copy
 import torch
 import numpy as np
 import torch.nn as nn
+import wandb
 from tqdm import tqdm
 import torch.nn.functional as F
 from evaluation.slr_eval.wer_calculation import evaluate
@@ -14,6 +15,7 @@ from torch.cuda.amp import GradScaler
 def seq_train(loader, model, optimizer, device, epoch_idx, recoder):
     model.train()
     loss_value = []
+    total_loss_dict = {}
     clr = [group['lr'] for group in optimizer.optimizer.param_groups]
     scaler = GradScaler()
     tqdm_loader = tqdm(loader, ncols=100)
@@ -26,13 +28,15 @@ def seq_train(loader, model, optimizer, device, epoch_idx, recoder):
         optimizer.zero_grad()
         with autocast():
             ret_dict = model(vid, vid_lgt, label=label, label_lgt=label_lgt)
-            loss = model.criterion_calculation(ret_dict, label, label_lgt)
+            # loss, loss_dict = model.criterion_calculation(ret_dict, label, label_lgt)
+            loss = model.criterion_calculation ( ret_dict , label , label_lgt )
         if np.isinf(loss.item()) or np.isnan(loss.item()):
             print('loss is nan')
             print(str(data[1])+'  frames')
             print(str(data[3])+'  glosses')
             del ret_dict
             del loss
+            # del loss_dict
             nan+=1
             if nan == 30:
                 exit()
@@ -42,15 +46,25 @@ def seq_train(loader, model, optimizer, device, epoch_idx, recoder):
         scaler.update()
         # nn.utils.clip_grad_norm_(model.rnn.parameters(), 5)
         loss_value.append(loss.item())
+        # for item, value in loss_dict.items():
+        #     if item not in total_loss_dict:
+        #         total_loss_dict[item] = value
+        #     else:
+        #         total_loss_dict[item] += value
         if batch_idx % recoder.log_interval == 0:
             recoder.print_log(
                 '\tEpoch: {}, Batch({}/{}) done. Loss: {:.8f}  lr:{:.6f}'
                     .format(epoch_idx, batch_idx, len(loader), loss.item(), clr[0]))
+            # for item, value in total_loss_dict.items():
+            #     recoder.print_log(f'\t Mean {item} loss: {value / recoder.log_interval:.5f}')
+            #     wandb.log({f"Mean {item} loss": value / recoder.log_interval})
         tqdm_loader.set_postfix({'Loss' : loss.item()})
         del ret_dict
         del loss
+        # del loss_dict
     optimizer.scheduler.step()
     recoder.print_log('\tMean training loss: {:.10f}.'.format(np.mean(loss_value)))
+    wandb.log({"Mean training loss": np.mean(loss_value)})
     return 
 
 

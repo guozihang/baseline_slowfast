@@ -1,4 +1,5 @@
 import os
+import wandb
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 import pdb
@@ -63,6 +64,7 @@ class Processor():
             slowfast_args.append(value)
         self.arg.slowfast_args = slowfast_args
         self.model, self.optimizer = self.loading()
+        wandb.watch(self.model)
 
     def start(self):
         if self.arg.phase == 'train':
@@ -84,9 +86,11 @@ class Processor():
                     dev_wer = seq_eval(self.arg, self.data_loader['dev'], self.model, self.device,
                                        'dev', epoch, self.arg.work_dir, self.recoder, self.arg.evaluate_tool)
                     self.recoder.print_log("Dev WER: {:05.2f}%".format(dev_wer))
+                    wandb.log({"dev_wer": dev_wer})
                     test_wer = seq_eval(self.arg, self.data_loader["test"], self.model, self.device,
                                         "test", 6667, self.arg.work_dir, self.recoder, self.arg.evaluate_tool)
                     self.recoder.print_log("Test WER: {:05.2f}%".format(test_wer))
+                    wandb.log({"test_wer": test_wer})
                 if dev_wer < best_dev:
                     best_dev = dev_wer
                     best_epoch = epoch
@@ -229,7 +233,7 @@ class Processor():
         shutil.copy2(inspect.getfile(self.feeder), self.arg.work_dir)
         if self.arg.dataset == 'CSL':
             dataset_list = zip(["train", "dev"], [True, False])
-        elif 'phoenix' in self.arg.dataset:
+        elif ('phoenix' in self.arg.dataset) or ('ph' in self.arg.dataset):
             dataset_list = zip(["train", "train_eval", "dev", "test"], [True, False, False, False]) 
         elif self.arg.dataset == 'CSL-Daily':
             dataset_list = zip(["train", "train_eval", "dev", "test"], [True, False, False, False])
@@ -281,6 +285,7 @@ if __name__ == '__main__':
                 assert (k in key)
         sparser.set_defaults(**default_arg)
     args = sparser.parse_args()
+    wandb.init ( project = args.work_dir.split("/")[-1], entity = "gzhlaker")
     with open(f"./configs/{args.dataset}.yaml", 'r') as f:
         args.dataset_info = yaml.load(f, Loader=yaml.FullLoader)
     processor = Processor(args)
