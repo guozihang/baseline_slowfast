@@ -41,7 +41,7 @@ class Attention(nn.Module):
 
         self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
         self.attn_drop = nn.Dropout(attn_drop)
-        self.proj = nn.Linear(dim, dim)
+        self.proj = nn.Linear(dim, 1024)
         self.proj_drop = nn.Dropout(proj_drop)
 
     def forward(self, x):
@@ -92,10 +92,7 @@ class SLRModel(nn.Module):
             self.classifier = nn.ModuleList([classifier for i in range(3)])
             self.conv1d.fc = nn.ModuleList([classifier for i in range(3)])
         #self.register_backward_hook(self.backward_hook)
-        self.video_gloss_attn_a = Attention(1024)
-        self.video_gloss_attn_b = Attention ( 1024 )
-        self.video_gloss_attn_c = Attention ( 1024 )
-        self.video_gloss_attn = [self.video_gloss_attn_a, self.video_gloss_attn_b, self.video_gloss_attn_c]
+        self.video_gloss_attn = Attention(2304)
         self.cosine_sim = torch.nn.CosineSimilarity ( dim = -1 , eps = 1e-6 )
         self.gloss_encoder = gloss_encoder()
 
@@ -119,34 +116,31 @@ class SLRModel(nn.Module):
         else:
             # frame-wise features
             framewise = x
+        l_framewise = self.video_gloss_attn( framewise.permute(2, 0, 1) )
+        r_framewise = l_framewise.roll ( 1 , 0 )
+        similarity = self.cosine_sim ( l_framewise , r_framewise ).squeeze ( -1 )
+        topk_similarity , topk_indices = similarity.topk ( label_lgt [ 0 ] , sorted = True )
+        paired = list ( zip ( topk_similarity.tolist ( ) , topk_indices.tolist ( ) ) )
+        sorted_paired = sorted ( paired , key = lambda x : x [ 1 ] )
+        se = [ ]
+        for j in range ( len ( sorted_paired ) ) :
+            if j == 0 :
+                se.append ( [ 0 , sorted_paired [ j ] [ 1 ] ] )
+            elif j == len ( sorted_paired ) - 1 :
+                se.append ( [ sorted_paired [ -1 ] [ 1 ] , len ( l_framewise ) - 1 ] )
+            else :
+                se.append ( [ sorted_paired [ j - 1 ] [ 1 ] , sorted_paired [ j ] [ 1 ] ] )
+        pooled_feature = [ ]
+        for start , end in se :
+            if end != start :
+                b = torch.nn.functional.avg_pool1d ( l_framewise [ start :end ].squeeze ( 1 ).T ,
+                                                     kernel_size = end - start )
+                pooled_feature.append ( b.T )
+            else :
+                pooled_feature.append ( l_framewise [ start ].squeeze ( 1 ) )
+        pooled_feature = torch.concat ( pooled_feature , dim = 0 )
+        gloss_feature = self.gloss_encoder ( label )
         conv1d_outputs = self.conv1d(framewise, len_x)
-        pooled_features = []
-        for i in range(len(conv1d_outputs['visual_feat'])):
-            conv1d_output = conv1d_outputs['visual_feat'][i]
-            conv1d_output = self.video_gloss_attn[i](conv1d_output)
-            r_conv1d_output = conv1d_output.roll(1, 0)
-            similarity = self.cosine_sim ( conv1d_output , r_conv1d_output ).squeeze(-1)
-            topk_similarity , topk_indices = similarity.topk ( label_lgt[0] , sorted = True )
-            paired = list ( zip ( topk_similarity.tolist ( ) , topk_indices.tolist ( ) ) )
-            sorted_paired = sorted ( paired , key = lambda x : x [ 1 ] )
-            se = [ ]
-            for j in range ( len ( sorted_paired ) ) :
-                if j == 0 :
-                    se.append ( [ 0 , sorted_paired [ j ] [ 1 ] ] )
-                elif j == len ( sorted_paired ) - 1 :
-                    se.append ( [ sorted_paired [ -1 ] [ 1 ] , len ( conv1d_output ) - 1 ] )
-                else :
-                    se.append ( [ sorted_paired [ j - 1 ] [ 1 ] , sorted_paired [ j ] [ 1 ] ] )
-            pooled_feature = [ ]
-            for start , end in se :
-                if end != start:
-                    b = torch.nn.functional.avg_pool1d ( conv1d_output [ start :end ].squeeze(1).T , kernel_size = end - start)
-                    pooled_feature.append ( b.T )
-                else:
-                    pooled_feature.append ( conv1d_output [ start ].squeeze(1) )
-
-            pooled_features.append(torch.concat(pooled_feature, dim=0))
-        gloss_feature = self.gloss_encoder(label)
         lgt = conv1d_outputs [ 'feat_len' ]
         outputs = []
         for i in range(len(conv1d_outputs['visual_feat'])):
@@ -166,7 +160,7 @@ class SLRModel(nn.Module):
             "sequence_logits": outputs,
             "conv_sents": conv_pred,
             "recognized_sents": pred,
-            "pooled_features":pooled_features,
+            "pooled_feature":pooled_feature,
             "gloss_feature":gloss_feature,
             "label":label
         }
@@ -218,21 +212,18 @@ class SLRModel(nn.Module):
                                                                                     0 ].detach ( ) ,
                                                                                 use_blank = False )
                 loss += total_loss [ 'Dist' ]
-            elif k == 'Cosine':
-                for i in range(3):
-                    # total_loss [ f'Cosine_{i}' ] = weight * self.loss['CosineLoss'](ret_dict["pooled_features"][i], ret_dict["gloss_feature"], ret_dict["label"])
-                    # loss += total_loss [ f'Cosine_{i}' ]
-                    total_loss [ f'Cosine_{i}' ] = weight * self.loss [ 'CosineLoss' ] ( ret_dict [ "pooled_features" ][i] ,
-                                                                                    ret_dict [ "gloss_feature" ] )
-                    loss += total_loss [ f'Cosine_{i}']
+            elif k == 'Cosine' :
+                total_loss [ 'Cosine' ] = weight * self.loss['CosineLoss']( ret_dict["pooled_feature"], ret_dict["gloss_feature"])
+                loss += total_loss [ 'Cosine' ]
         return loss , total_loss
+
 
     def criterion_init(self):
         self.loss['CTCLoss'] = torch.nn.CTCLoss(reduction='none', zero_infinity=False)
         self.loss['distillation'] = SeqKD(T=8)
-        # self.loss['CosineLoss'] = torch.nn.CosineEmbeddingLoss()
-        self.loss [ 'CosineLoss' ] = CosineSimilarityLoss ( )
+        self.loss['CosineLoss'] = CosineSimilarityLoss()
         return self.loss
+
 
 class CosineSimilarityLoss ( nn.Module ) :
     def __init__ ( self ) :
