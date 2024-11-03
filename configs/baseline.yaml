@@ -1,15 +1,15 @@
 feeder: dataset.dataloader_video.BaseFeeder
 phase: train
 dataset: phoenix2014
-#num_epoch: 80
-num_epoch: 50 # csl-daily
+num_epoch: 80
+#num_epoch: 50 # csl-daily
 work_dir: ./work_dir/baseline_res18/
-batch_size: 1
+batch_size: 6
 random_seed: 0
-test_batch_size: 1
+test_batch_size: 6
 num_worker: 8
 device: 0
-log_interval: 10000
+log_interval: 99999999
 eval_interval: 1
 save_interval: 5
 # python in default
@@ -19,14 +19,15 @@ loss_weights:
   # VAC
   ConvCTC: 1.0
   Dist: 25.0
+  Cosine: 1
 #load_weights: ''
 
 optimizer_args:
   optimizer: Adam
   base_lr: 0.0001
   scheduler: multistep
-#  step: [40, 60] # phoenix2014
-  step: [25, 30, 35, 40, 45] # csl-daily
+  step: [40, 60] # phoenix2014
+#  step: [25, 30, 35, 40, 45] # csl-daily
   learning_ratio: 1
   gamma: 0.2
   weight_decay: 0.0001
@@ -35,7 +36,7 @@ optimizer_args:
 
 feeder_args:
   mode: 'train'
-  datatype: 'numpy'
+  datatype: 'memmap'
   num_gloss: -1
   drop_ratio: 1.0
   frame_interval: 1
