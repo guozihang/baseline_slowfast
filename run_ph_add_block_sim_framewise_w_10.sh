@@ -1,0 +1,1 @@
+python main.py --device 9 --model slr_network_multi_add_block_sim_2.SLRModel --dataset phoenix2014 --loss-weights Slow=0.25 Fast=0.25 Cosine=10 --work-dir /sda/data/guozihang/work_dir/slowfast_add_block_sim_framewise_10
