@@ -77,33 +77,63 @@ class BaseFeeder ( data.Dataset ) :
             return input_data , label , self.inputs_list [ idx ] [ 'original_info' ]
 
     def init_memmap ( self ) :
-        if self.dataset == 'phoenix2014':
-            with open ( f"./dataset/ph_memmap/phoenix2014-{self.mode}.pickle",mode = "rb" ) as f :
+        if self.dataset == 'phoenix2014' :
+            with open ( f"./dataset/ph_memmap/phoenix2014-{self.mode}.pickle" , mode = "rb" ) as f :
                 self.info = pickle.load ( f )
             T = self.info [ -1 ] [ 'end' ]
             self.info = {i [ "path" ].split ( "/" ) [ -1 ] : [ i [ "start" ] , i [ "end" ] ] for i in self.info}
             self.mem = np.memmap (
                 f"./dataset/ph_memmap/phoenix2014-bigarray-map-{self.mode}" ,
                 mode = "r" ,
-                shape = (T , 256 , 256 , 3))
-        elif self.dataset == 'phoenix2014-T':
-            with open ( f"/share/huaiwen_group/guozihang/phoenix2014-T-release_memmap/phoenix2014-T-{self.mode}.pickle",mode = "rb" ) as f :
+                shape = (T , 256 , 256 , 3) )
+        elif self.dataset == 'phoenix2014-noback' :
+            with open ( f"./dataset/ph_memmap/phoenix2014-{self.mode}.pickle" , mode = "rb" ) as f :
+                self.info = pickle.load ( f )
+            T = self.info [ -1 ] [ 'end' ]
+            self.info = {i [ "path" ].split ( "/" ) [ -1 ] : [ i [ "start" ] , i [ "end" ] ] for i in self.info}
+            self.mem = np.memmap (
+                f"./dataset/ph_noback_memmap/phoenix2014-noback-{self.mode}" ,
+                mode = "r" ,
+                shape = (T , 256 , 256 , 3) )
+        elif self.dataset == 'ph_fuse' :
+            if self.mode == 'train' :
+                with open ( f"./dataset/ph_fuse_memmap/fuse_ph_train_info.pkl" , mode = "rb" ) as f :
+                    self.info = pickle.load ( f )
+            else:
+                with open ( f"./dataset/ph_memmap/phoenix2014-{self.mode}.pickle" , mode = "rb" ) as f :
+                    self.info = pickle.load ( f )
+            T = self.info [ -1 ] [ 'end' ]
+            self.info = {i [ "path" ].split ( "/" ) [ -1 ] : [ i [ "start" ] , i [ "end" ] ] for i in self.info}
+            if self.mode == 'train' :
+                self.mem = np.memmap (
+                    f"./dataset/ph_fuse_memmap/fuse_ph_memmap" ,
+                    mode = "r" ,
+                    shape = (T , 256 , 256 , 3) )
+            else:
+                self.mem = np.memmap (
+                    f"./dataset/ph_memmap/phoenix2014-bigarray-map-{self.mode}" ,
+                    mode = "r" ,
+                    shape = (T , 256 , 256 , 3) )
+        elif self.dataset == 'phoenix2014-T' :
+            with open (
+                    f"/share/huaiwen_group/guozihang/phoenix2014-T-release_memmap/phoenix2014-T-{self.mode}.pickle" ,
+                    mode = "rb" ) as f :
                 self.info = pickle.load ( f )
             T = self.info [ -1 ] [ 'end' ]
             self.info = {i [ "path" ].split ( "/" ) [ -1 ] : [ i [ "start" ] , i [ "end" ] ] for i in self.info}
             self.mem = np.memmap (
                 f"/share/huaiwen_group/guozihang/phoenix2014-T-release_memmap/phoenix2014-T-bigarray-map-{self.mode}" ,
                 mode = "r" ,
-                shape = (T , 256 , 256 , 3))
-        elif self.dataset == "CSL-Daily":
-            with open ( f"/share/huaiwen_group/guozihang/CSL-Daily_memap/csldaily.pickle",mode = "rb" ) as f :
+                shape = (T , 256 , 256 , 3) )
+        elif self.dataset == "CSL-Daily" :
+            with open ( f"/share/huaiwen_group/guozihang/CSL-Daily_memap/csldaily.pickle" , mode = "rb" ) as f :
                 self.info = pickle.load ( f )
             T = self.info [ -1 ] [ 'end' ]
             self.info = {i [ "path" ].split ( "/" ) [ -1 ] : [ i [ "start" ] , i [ "end" ] ] for i in self.info}
             self.mem = np.memmap (
                 f"/share/huaiwen_group/guozihang/CSL-Daily_memap/csldaily" ,
                 mode = "r" ,
-                shape = (T , 256 , 256 , 3))
+                shape = (T , 256 , 256 , 3) )
 
     def read_memmap ( self , index ) :
         fi = self.inputs_list [ index ]
@@ -141,27 +171,27 @@ class BaseFeeder ( data.Dataset ) :
         images = [ np.squeeze ( im , axis = 0 ) for im in images ]
         return images , label_list , fi
 
-    def read_numpy(self, index):
+    def read_numpy ( self , index ) :
         # load file info
-        fi = self.inputs_list[index]
-        if self.dataset in ["phoenix2014-normal", "phoenix2014-noback"]:
+        fi = self.inputs_list [ index ]
+        if self.dataset in [ "phoenix2014-normal" , "phoenix2014-noback" ] :
             # img_folder = os.path.join(self.prefix, "features/fullFrame-256x256px/" + fi['folder'])
-            img_folder = os.path.join(self.prefix, self.mode, fi['fileid'] + ".npy")
-        elif self.dataset == 'CSL':
-            img_folder = os.path.join(self.prefix, "features/fullFrame-256x256px/" + fi['folder'] + "/*.jpg")
-        elif self.dataset == 'CSL-Daily':
-            img_folder = os.path.join(self.prefix, fi['folder'])
-        label_list = []
-        for phase in fi['label'].split(" "):
-            if phase == '':
+            img_folder = os.path.join ( self.prefix , self.mode , fi [ 'fileid' ] + ".npy" )
+        elif self.dataset == 'CSL' :
+            img_folder = os.path.join ( self.prefix , "features/fullFrame-256x256px/" + fi [ 'folder' ] + "/*.jpg" )
+        elif self.dataset == 'CSL-Daily' :
+            img_folder = os.path.join ( self.prefix , fi [ 'folder' ] )
+        label_list = [ ]
+        for phase in fi [ 'label' ].split ( " " ) :
+            if phase == '' :
                 continue
-            if phase in self.dict.keys():
-                label_list.append(self.dict[phase][0])
+            if phase in self.dict.keys ( ) :
+                label_list.append ( self.dict [ phase ] [ 0 ] )
 
-        images = np.load(img_folder)
-        images = np.split(images, images.shape[0], axis=0)
-        images = [np.squeeze(im, axis=0) for im in images]
-        return images, label_list, fi
+        images = np.load ( img_folder )
+        images = np.split ( images , images.shape [ 0 ] , axis = 0 )
+        images = [ np.squeeze ( im , axis = 0 ) for im in images ]
+        return images , label_list , fi
 
     def read_video ( self , index ) :
         # load file info
