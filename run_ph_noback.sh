@@ -1,1 +1,1 @@
-python main.py --device 6 --dataset phoenix2014-noback --loss-weights Slow=0.25 Fast=0.25 --work-dir /share/huaiwen_group/guozihang/work_dir/slowfast_ph_noback
+python main.py --device 6 --load-checkpoints /share/huaiwen_group/guozihang/work_dir/slowfast_ph_noback/dev_18.50_epoch50_model.pt --dataset phoenix2014-noback --loss-weights Slow=0.25 Fast=0.25 --work-dir /share/huaiwen_group/guozihang/work_dir/slowfast_ph_noback
