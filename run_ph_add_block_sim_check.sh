@@ -1,0 +1,1 @@
+python main.py --device 0 --model slr_network_multi_add_block_sim.SLRModel --load-checkpoints  /sda/data/guozihang/work_dir/slowfast_add_block_sim_cos_loss/dev_27.35_epoch15_model.pt --dataset phoenix2014 --loss-weights Slow=0.25 Fast=0.25 Cosine=1 --work-dir /sda/data/guozihang/work_dir/test
