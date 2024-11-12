@@ -1,1 +1,1 @@
-python main.py --device 8 --dataset ph_fuse --loss-weights Slow=0.25 Fast=0.25 --work-dir /sda/data/guozihang/work_dir/slowfast_ph_fuse
+python main.py --device 5  --dataset ph_fuse --loss-weights Slow=0.25 Fast=0.25 --load-checkpoints /sda/data/guozihang/work_dir/slowfast_ph_fuse/dev_33.00_epoch20_model.pt --work-dir /sda/data/guozihang/work_dir/slowfast_ph_fuse
