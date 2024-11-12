@@ -42,6 +42,7 @@ class SLRModel ( nn.Module ) :
         self.decoder = None
         self.loss = dict ( )
         self.criterion_init ( )
+        self.num_classes = num_classes
         self.loss_weights = loss_weights
         self.conv2d = getattr ( slowfast , c2d_type ) ( slowfast_config = slowfast_config ,
                                                         slowfast_args = slowfast_args ,
